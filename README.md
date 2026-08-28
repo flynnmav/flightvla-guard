@@ -35,6 +35,7 @@ python -m flightvla validate chunk.json --vehicle quad
 
 零依赖(纯 Python 标准库),Python ≥ 3.9,`pip install -e .` 后也可用 `flightvla` 命令。
 生成的 HTML 报告**单文件、离线可用**,直接拖进浏览器;回放页支持 `report.html#t=17.5` 跳转播放头,录屏即可得到 20–30 s 的传播 GIF。
+排版遵循期刊图表规范:白底、Helvetica、Okabe-Ito 色盲安全色板、细线轴 + 直接标注(无图例框)、三线表、Fig. / Table 题注体系。
 
 ![demo](docs/img/report-demo.png)
 
