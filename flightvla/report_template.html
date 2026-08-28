@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlightVLA Guard — Evaluation Report</title>
+<style>
+  :root{
+    --bg:#0b0f14; --card:#11161d; --card2:#0e1319; --border:#1f2937; --text:#e5e7eb;
+    --muted:#94a3b8; --cyan:#22d3ee; --green:#34d399; --red:#f87171; --amber:#fbbf24;
+    --blue:#60a5fa; --purple:#c084fc; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.55 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1280px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:26px;margin:0 0 4px}
+  h2{font-size:19px;margin:0 0 12px;color:var(--cyan)}
+  h2 small{color:var(--muted);font-weight:400;font-size:13px;margin-left:8px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin:16px 0}
+  .sub{color:var(--muted);font-size:13px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{border:1px solid var(--border);border-radius:999px;padding:3px 12px;font-size:13px;background:var(--card2)}
+  .chip.ok{color:var(--green);border-color:rgba(52,211,153,.4)}
+  .chip.warn{color:var(--amber);border-color:rgba(251,191,36,.4)}
+  .chip.bad{color:var(--red);border-color:rgba(248,113,113,.4)}
+  .chip.info{color:var(--cyan)}
+  blockquote{margin:12px 0 0;padding:12px 16px;border-left:3px solid var(--cyan);
+             background:var(--card2);border-radius:0 8px 8px 0;font-size:15px}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .single{grid-template-columns:1fr}
+  .pane{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .pane h3{margin:2px 0 8px;font-size:15px}
+  .pane h3 .tag{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px}
+  canvas.view{width:100%;border-radius:8px;background:#070a0e;cursor:grab;display:block}
+  canvas.view:active{cursor:grabbing}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px;color:var(--muted)}
+  .legend i{display:inline-block;width:18px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .controls{display:flex;align-items:center;gap:12px;margin:14px 4px 0}
+  .controls button{background:var(--cyan);border:0;color:#04212a;font-weight:700;font-size:14px;
+                   border-radius:8px;padding:8px 18px;cursor:pointer}
+  .controls input[type=range]{flex:1;accent-color:var(--cyan)}
+  .controls select{background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px}
+  #tlabel{font-family:var(--mono);font-size:13px;color:var(--muted);min-width:90px;text-align:right}
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .chartbox{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px}
+  .chartbox .ct{font-size:13px;color:var(--muted);margin:2px 4px 6px}
+  canvas.chart{width:100%;height:200px;display:block}
+  .kfgallery{display:flex;flex-wrap:wrap;gap:14px}
+  .kf{text-align:center}
+  .kf canvas{width:170px;height:120px;border:1px solid var(--border);border-radius:8px;background:#070a0e}
+  .kf .cap{font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.03em}
+  td.num{font-family:var(--mono)}
+  tr:hover td{background:rgba(34,211,238,.04)}
+  .scroll{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:8px}
+  .scroll table{margin:0}
+  .scroll th{position:sticky;top:0;background:var(--card);z-index:1}
+  .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .pill.pass,.pill.accept,.pill.ok{background:rgba(52,211,153,.12);color:var(--green)}
+  .pill.modified,.pill.warn,.pill.hold{background:rgba(251,191,36,.12);color:var(--amber)}
+  .pill.reject{background:rgba(248,113,113,.14);color:var(--red)}
+  .pill.info{background:rgba(96,165,250,.12);color:var(--blue)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .stat{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .stat .v{font-family:var(--mono);font-size:19px}
+  .stat .k{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .inspector{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  pre{margin:0;padding:12px;border-radius:8px;font-family:var(--mono);font-size:11.8px;
+      line-height:1.45;overflow:auto;max-height:300px;white-space:pre-wrap}
+  pre.raw{border:1px solid rgba(248,113,113,.35);background:rgba(248,113,113,.05)}
+  pre.fixed{border:1px solid rgba(52,211,153,.35);background:rgba(52,211,153,.05)}
+  .ilabel{font-size:12px;margin-bottom:5px;color:var(--muted)}
+  footer{margin-top:28px;padding:16px 18px;border:1px solid var(--border);border-radius:12px;
+         background:var(--card2);font-size:12.5px;color:var(--muted)}
+  footer b{color:var(--text)}
+  .gen{margin-top:8px;font-family:var(--mono);font-size:11px;color:#475569}
+  @media (max-width:900px){.split,.charts,.inspector{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="card">
+    <h1>FlightVLA Guard <span class="sub">评测报告 / Evaluation Report</span></h1>
+    <div class="sub" id="meta-line"></div>
+    <blockquote id="instruction"></blockquote>
+    <div class="chips" id="constraint-chips"></div>
+    <div class="chips" id="badges"></div>
+  </header>
+
+  <section class="card">
+    <h2>闭环回放 Closed-loop playback <small>红 = VLA 原始动作 · 绿 = 安全层修正后 · 白 = 实际执行 · 录屏即可得到 20–30s 的传播 GIF</small></h2>
+    <div class="split" id="views"></div>
+    <div class="controls">
+      <button id="playbtn">⏸ 暂停</button>
+      <input type="range" id="slider" min="0" max="1000" value="0">
+      <span id="tlabel">t = 0.0 s</span>
+      <select id="speed">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>VLA 看到了什么 What the VLA saw <small>合成相机帧 · 十字线为画面中心</small></h2>
+    <div id="kf-views"></div>
+  </section>
+
+  <section class="card">
+    <h2>AI 动作检查器 ActionBlock inspector <small>播放头所在时刻:原始输出 vs 安全层修正</small></h2>
+    <div id="inspectors"></div>
+  </section>
+
+  <section class="card">
+    <h2>关键指标时序 Time series <small>阵风 / 视觉丢失 / 超时窗口已着色</small></h2>
+    <div class="charts" id="charts"></div>
+  </section>
+
+  <section class="card" id="compare-sec">
+    <h2>普通四旋翼 vs 全向平台对比 Quad vs omni comparison</h2>
+    <div id="compare"></div>
+  </section>
+
+  <section class="card">
+    <h2>每机统计 Per-vehicle statistics</h2>
+    <div class="split" id="stat-views"></div>
+  </section>
+
+  <section class="card">
+    <h2>安全干预日志 Safety intervention log <small>安全层对 AI 动作的每一次修改 / 拒绝</small></h2>
+    <div class="scroll" id="interventions"></div>
+  </section>
+
+  <section class="card">
+    <h2>事件时间线 Event timeline</h2>
+    <div id="event-strips"></div>
+  </section>
+
+  <footer>
+    <b>安全边界 Safety boundary:</b> 本平台中 VLA / VLM / LLM 只允许输出 ActionBlock(短时 6-DoF 动作块:
+    frame / horizon / dt / delta_position / delta_orientation / stop_probability / confidence)。
+    电机 PWM、电机转速、单旋翼推力、PX4 actuator command、绕过安全层的 MAVLink 指令在 schema 层即无法表达;
+    SafetyGuard 是 offboard setpoint 流的唯一写入者。PX4 始终拥有 EKF 与位置/速度/姿态/角速度闭环;
+    offboard 心跳中断时 PX4 退出 offboard 并执行其 failsafe —— 这就是本运行时的执行边界。<br>
+    <b>EN:</b> Agents emit ActionBlocks only. Motor PWM / rotor speed / per-rotor thrust / PX4 actuator
+    commands / raw MAVLink are unrepresentable at the schema level. The guard is the sole writer of the
+    offboard stream; PX4 keeps owning the EKF and every closed loop, and its own failsafe is the final
+    execution boundary.
+    <div class="gen" id="gen"></div>
+  </footer>
+</div>
+
+<script>
+const DATA = __FLIGHTVLA_DATA__;
+const COLORS = ["#22d3ee", "#fbbf24"];
+const PHYS_DT = 0.05;
+
+/* ============================= data prep ============================= */
+const SCENE = DATA.scene;
+const RUNS = DATA.runs.map(function (run, idx) {
+  const tl = run.timeline;
+  const N = tl.t.length;
+  const pos = [], posT = tl.t;
+  for (let i = 0; i < N; i++) pos.push([tl.px[i], tl.py[i], tl.pz[i]]);
+  const rawSegs = run.chunks
+    .filter(function (c) { return c.raw_path && c.raw_path.length >= 2; })
+    .map(function (c) { return { pts: c.raw_path, t0: c.t_arrival, dt: SCENE.chunk_dt }; });
+  const fixSegs = run.chunks
+    .filter(function (c) { return c.repaired_path && c.repaired_path.length >= 2; })
+    .map(function (c) { return { pts: c.repaired_path, t0: c.t_arrival, dt: c.repaired_block.dt || SCENE.chunk_dt }; });
+  return { run: run, idx: idx, tl: tl, N: N, pos: pos, posT: posT,
+           rawSegs: rawSegs, fixSegs: fixSegs,
+           color: COLORS[idx % COLORS.length],
+           label: run.meta.vehicle.name,
+           kindZh: run.meta.vehicle.kind === "underactuated" ? "普通四旋翼 · 欠驱动" : "全向平台 · 全驱动" };
+});
+const T_END = Math.max.apply(null, RUNS.map(function (r) { return r.run.meta.duration; })) + 0.4;
+
+/* ============================= header ============================= */
+(function () {
+  document.getElementById("instruction").textContent = "指令 Instruction:" + SCENE.instruction;
+  const cc = document.getElementById("constraint-chips");
+  SCENE.constraints.forEach(function (c) {
+    const s = document.createElement("span");
+    s.className = "chip info";
+    s.textContent = "约束 " + c.id + ": " + c.text;
+    s.title = "enforced by: " + c.enforced_by;
+    cc.appendChild(s);
+  });
+  const m = RUNS.map(function (r) {
+    return r.run.meta.agent.name + " × " + r.run.meta.vehicle.name +
+      (r.run.meta.faults.spec ? " × [" + r.run.meta.faults.spec + "]" : "");
+  }).join("   |   ");
+  document.getElementById("meta-line").textContent =
+    "task: " + SCENE.name + " · " + m + " · seed " + RUNS[0].run.meta.seed;
+  const badges = document.getElementById("badges");
+  RUNS.forEach(function (r) {
+    const o = r.run.outcome, mt = r.run.metrics;
+    [["任务 " + r.label, o.success ? "ok" : "bad", o.success ? "成功 ✓" : "未达成 ✗"],
+     ["干预", "info", "安全干预 " + mt.interventions_total],
+     ["超时", mt.latency_timeouts ? "warn" : "ok", "推理超时 " + mt.latency_timeouts],
+     ["禁区", mt.executed_zone_incursions ? "bad" : "ok", "执行越界 " + mt.executed_zone_incursions],
+     ["最小距离", mt.min_dist_gauge_executed >= SCENE.min_distance - 0.01 ? "ok" : "bad",
+      "最小距离 " + mt.min_dist_gauge_executed.toFixed(2) + " m"]
+    ].forEach(function (b) {
+      const s = document.createElement("span");
+      s.className = "chip " + b[1];
+      s.textContent = b[2] === undefined ? b[0] : b[2];
+      if (b[2] === undefined) s.textContent = b[0];
+      badges.appendChild(s);
+    });
+  });
+  document.getElementById("gen").textContent = DATA.generator + " · generated " +
+    new Date().toISOString().slice(0, 16).replace("T", " ");
+})();
+
+/* ============================= 3D view ============================= */
+function View3D(canvas, entry) {
+  this.cv = canvas; this.ctx = canvas.getContext("2d");
+  this.entry = entry;
+  this.yaw = -0.62; this.elev = 0.52; this.radius = 13.5;
+  this.center = [(SCENE.fence_min[0] + SCENE.fence_max[0]) / 2,
+                 (SCENE.fence_min[1] + SCENE.fence_max[1]) / 2, 1.3];
+  this.drag = null;
+  const self = this;
+  canvas.addEventListener("mousedown", function (e) { self.drag = [e.clientX, e.clientY]; });
+  window.addEventListener("mousemove", function (e) {
+    if (!self.drag) return;
+    self.yaw += (e.clientX - self.drag[0]) * 0.008;
+    self.elev = Math.max(0.08, Math.min(1.35, self.elev + (e.clientY - self.drag[1]) * 0.006));
+    self.drag = [e.clientX, e.clientY];
+  });
+  window.addEventListener("mouseup", function () { self.drag = null; });
+  this.resize();
+}
+View3D.prototype.resize = function () {
+  const dpr = window.devicePixelRatio || 1;
+  const w = this.cv.clientWidth || 600;
+  this.cv.height = Math.round(w * 0.66 * dpr);
+  this.cv.width = Math.round(w * dpr);
+  this.w = this.cv.width; this.h = this.cv.height; this.dpr = dpr;
+};
+View3D.prototype.project = function (p) {
+  const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+  const x = p[0] - this.center[0], y = p[1] - this.center[1], z = p[2] - this.center[2];
+  const x1 = x * cy - y * sy, y1 = x * sy + y * cy;
+  const ce = Math.cos(this.elev), se = Math.sin(this.elev);
+  const depth = y1 * ce + z * se;
+  const up = z * ce - y1 * se;
+  const f = 3.2 / (3.2 + depth / this.radius);
+  const s = this.w / this.radius * 0.92;
+  return { x: this.w / 2 + x1 * s * f, y: this.h * 0.56 - up * s * f, d: depth, f: f };
+};
+View3D.prototype.line = function (a, b, color, width, dash) {
+  const c = this.ctx, pa = this.project(a), pb = this.project(b);
+  c.strokeStyle = color; c.lineWidth = width || 1;
+  c.setLineDash(dash || []);
+  c.beginPath(); c.moveTo(pa.x, pa.y); c.lineTo(pb.x, pb.y); c.stroke();
+  c.setLineDash([]);
+};
+View3D.prototype.poly = function (pts, color, width, dash, alpha) {
+  const c = this.ctx;
+  c.strokeStyle = color; c.lineWidth = width || 1; c.setLineDash(dash || []);
+  c.globalAlpha = alpha === undefined ? 1 : alpha;
+  c.beginPath();
+  let started = false, last = null;
+  for (let i = 0; i < pts.length; i++) {
+    const q = this.project(pts[i]);
+    if (!isFinite(q.x)) { started = false; continue; }
+    if (!started) { c.moveTo(q.x, q.y); started = true; } else c.lineTo(q.x, q.y);
+    last = q;
+  }
+  c.stroke(); c.globalAlpha = 1; c.setLineDash([]);
+  return last;
+};
+View3D.prototype.label = function (p, text, color) {
+  const q = this.project(p), c = this.ctx;
+  c.fillStyle = color || "#94a3b8"; c.font = (11 * this.dpr) + "px system-ui";
+  c.fillText(text, q.x + 6 * this.dpr, q.y - 6 * this.dpr);
+};
+View3D.prototype.draw = function (T) {
+  const c = this.ctx, d = this.dpr;
+  c.clearRect(0, 0, this.w, this.h);
+  // grid
+  for (let x = SCENE.fence_min[0]; x <= SCENE.fence_max[0]; x++)
+    this.line([x, SCENE.fence_min[1], 0], [x, SCENE.fence_max[1], 0], "#16202c", 1);
+  for (let y = SCENE.fence_min[1]; y <= SCENE.fence_max[1]; y++)
+    this.line([SCENE.fence_min[0], y, 0], [SCENE.fence_max[0], y, 0], "#16202c", 1);
+  // wall
+  this.poly([[SCENE.wall_x, -6, 0], [SCENE.wall_x, 6, 0], [SCENE.wall_x, 6, 3], [SCENE.wall_x, -6, 3]],
+            "#233246", 1.4, [], 1);
+  this.poly([[SCENE.wall_x, -6, 0], [SCENE.wall_x, 6, 0], [SCENE.wall_x, 6, 3], [SCENE.wall_x, -6, 3]],
+            "#141d29", 1, [], 1);
+  // keep-out cylinder
+  const k = SCENE.keepout, seg = 28;
+  const circ = function (z, self) {
+    const pts = [];
+    for (let i = 0; i <= seg; i++) {
+      const a = i / seg * Math.PI * 2;
+      pts.push([k.cx + k.r * Math.cos(a), k.cy + k.r * Math.sin(a), z]);
+    }
+    return pts;
+  };
+  const zb = circ(k.z0, this), zt = circ(k.z1, this);
+  this.poly(zb, "#6b5b12", 1.6);
+  this.poly(zt, "#8a7615", 1.2, [4, 4]);
+  for (let i = 0; i < seg; i += 2)
+    this.line([zb[i][0], zb[i][1], k.z0], [zb[i][0], zb[i][1], k.z1], "#3d3407", 1);
+  this.poly([[k.cx, k.cy, k.z0], [zb[0][0], zb[0][1], k.z0]], "rgba(0,0,0,0)", 0);
+  this.label([k.cx, k.cy, k.z1 + 0.1], "黄色禁区 keep-out", "#fbbf24");
+  // home
+  const h = SCENE.home;
+  this.poly([[h[0] - .25, h[1], .01], [h[0] + .25, h[1], .01]], "#64748b", 2);
+  this.poly([[h[0], h[1] - .25, .01], [h[0], h[1] + .25, .01]], "#64748b", 2);
+  this.label([h[0], h[1], 0.05], "Home", "#64748b");
+  // gauge (disc on wall, facing -x)
+  const g = SCENE.gauge, gr = SCENE.gauge_radius;
+  const gp = this.project([g[0], g[1], g[2]]);
+  const gp2 = this.project([g[0], g[1] + gr, g[2]]);
+  const rpix = Math.abs(gp2.y - gp.y) * 1.15;
+  c.beginPath(); c.arc(gp.x, gp.y, Math.max(3 * d, rpix), 0, Math.PI * 2);
+  c.fillStyle = "#ef4444"; c.fill();
+  c.strokeStyle = "#fff"; c.lineWidth = 1.2 * d; c.stroke();
+  const gp3 = this.project([g[0], g[1], g[2] + gr * 0.8]);
+  c.strokeStyle = "#fff"; c.lineWidth = 1.4 * d;
+  c.beginPath(); c.moveTo(gp.x, gp.y); c.lineTo(gp3.x, gp3.y); c.stroke();
+  this.label([g[0] - 0.2, g[1], g[2] - 0.55], "gauge", "#f87171");
+  // standoff marker
+  this.poly([[SCENE.standoff[0] - .18, SCENE.standoff[1], SCENE.standoff[2]],
+             [SCENE.standoff[0] + .18, SCENE.standoff[1], SCENE.standoff[2]]], "#34d399", 1.5, [3, 3]);
+  this.poly([[SCENE.standoff[0], SCENE.standoff[1] - .18, SCENE.standoff[2]],
+             [SCENE.standoff[0], SCENE.standoff[1] + .18, SCENE.standoff[2]]], "#34d399", 1.5, [3, 3]);
+
+  const e = this.entry;
+  // raw intended paths (red dashed)
+  c.globalAlpha = 0.55;
+  e.rawSegs.forEach(function (s) {
+    const pts = [];
+    for (let i = 0; i < s.pts.length; i++)
+      if (s.t0 + i * s.dt <= T + 1e-9) pts.push(s.pts[i]);
+      else break;
+    if (pts.length >= 2) this.poly(pts, "#f87171", 1.4, [5, 4]);
+  }, this);
+  c.globalAlpha = 1;
+  // repaired guard paths (green)
+  e.fixSegs.forEach(function (s) {
+    const pts = [];
+    for (let i = 0; i < s.pts.length; i++)
+      if (s.t0 + i * s.dt <= T + 1e-9) pts.push(s.pts[i]);
+      else break;
+    if (pts.length >= 2) this.poly(pts, "#34d399", 1.8);
+  }, this);
+  // executed trajectory (bright white-green)
+  const idx = Math.max(1, Math.min(e.N - 1, Math.round(T / PHYS_DT)));
+  this.poly(e.pos.slice(0, idx + 1), "#e2e8f0", 2.4, [], 0.9);
+  // drone icon
+  if (idx >= 1) {
+    const p = e.pos[idx], yaw = e.tl.yaw[idx];
+    const q = this.project(p);
+    const qh = this.project([p[0] + 0.6 * Math.cos(yaw), p[1] + 0.6 * Math.sin(yaw), p[2]]);
+    const ang = Math.atan2(qh.y - q.y, qh.x - q.x);
+    c.save(); c.translate(q.x, q.y); c.rotate(ang);
+    c.fillStyle = e.color;
+    c.beginPath(); c.moveTo(9 * d, 0); c.lineTo(-6 * d, 5.5 * d); c.lineTo(-6 * d, -5.5 * d);
+    c.closePath(); c.fill();
+    c.restore();
+    // camera boresight ray
+    const pitch = e.tl.pitch[idx];
+    const b = [Math.cos(yaw) * Math.cos(pitch), Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch)];
+    const q2 = this.project([p[0] + b[0] * 1.4, p[1] + b[1] * 1.4, p[2] + b[2] * 1.4]);
+    c.strokeStyle = e.color; c.lineWidth = 1.2 * d; c.setLineDash([3, 3]);
+    c.beginPath(); c.moveTo(q.x, q.y); c.lineTo(q2.x, q2.y); c.stroke(); c.setLineDash([]);
+  }
+  // title chip
+  c.fillStyle = "rgba(17,22,29,.8)";
+  c.fillRect(8 * d, 8 * d, 180 * d, 24 * d);
+  c.fillStyle = e.color; c.font = (12 * d) + "px system-ui";
+  c.fillText(e.label + " · " + e.kindZh, 14 * d, 24 * d);
+};
+
+/* ============================= playback ============================= */
+const views = [];
+(function () {
+  const host = document.getElementById("views");
+  host.className = "split" + (RUNS.length === 1 ? " single" : "");
+  RUNS.forEach(function (e) {
+    const pane = document.createElement("div");
+    pane.className = "pane";
+    const h = document.createElement("h3");
+    h.innerHTML = e.run.meta.agent.name + " → " + e.label + '<span class="tag">' + e.kindZh + "</span>";
+    const cv = document.createElement("canvas");
+    cv.className = "view";
+    const lg = document.createElement("div");
+    lg.className = "legend";
+    lg.innerHTML =
+      '<span><i style="background:#f87171"></i>VLA 原始轨迹 raw (dashed)</span>' +
+      '<span><i style="background:#34d399"></i>安全层修正后 repaired</span>' +
+      '<span><i style="background:#e2e8f0"></i>实际执行 executed</span>' +
+      '<span><i style="background:#fbbf24"></i>黄色禁区 keep-out</span>';
+    pane.appendChild(h); pane.appendChild(cv); pane.appendChild(lg);
+    host.appendChild(pane);
+    views.push(new View3D(cv, e));
+  });
+})();
+
+let playing = true, T = 0, speed = 1;
+const slider = document.getElementById("slider");
+const tlabel = document.getElementById("tlabel");
+const playbtn = document.getElementById("playbtn");
+// shareable deep-link: report.html#t=17.5 jumps the playhead (also handy for GIF frames)
+(function () {
+  const m = /t=([0-9.]+)/.exec(location.hash || "");
+  if (m) { T = Math.max(0, Math.min(T_END - 0.01, parseFloat(m[1]))); playing = false;
+           playbtn.textContent = "▶ 播放"; }
+})();
+playbtn.onclick = function () {
+  playing = !playing;
+  playbtn.textContent = playing ? "⏸ 暂停" : "▶ 播放";
+};
+slider.oninput = function () { T = slider.value / 1000 * T_END; updateOnce(); };
+document.getElementById("speed").onchange = function (e) { speed = +e.target.value; };
+
+let lastFrame = performance.now();
+function tick(now) {
+  const dt = (now - lastFrame) / 1000; lastFrame = now;
+  if (playing) {
+    T += dt * speed;
+    if (T > T_END) T = 0;
+    slider.value = Math.round(T / T_END * 1000);
+  }
+  drawAll();
+  requestAnimationFrame(tick);
+}
+function updateOnce() { drawAll(); }
+function drawAll() {
+  tlabel.textContent = "t = " + T.toFixed(1) + " s";
+  views.forEach(function (v) { v.draw(T); });
+  updateInspector(T);
+  requestChartsPlayhead(T);
+}
+requestAnimationFrame(tick);
+window.addEventListener("resize", function () {
+  views.forEach(function (v) { v.resize(); });
+  drawCharts();
+});
+
+/* ============================= keyframes ============================= */
+(function () {
+  const host = document.getElementById("kf-views");
+  RUNS.forEach(function (e) {
+    const box = document.createElement("div");
+    box.style.marginBottom = "14px";
+    const t = document.createElement("div");
+    t.className = "ilabel";
+    t.textContent = e.label + " · " + e.kindZh;
+    const gal = document.createElement("div");
+    gal.className = "kfgallery";
+    e.run.keyframes.forEach(function (kf) {
+      const cell = document.createElement("div");
+      cell.className = "kf";
+      const cv = document.createElement("canvas");
+      cv.width = 340; cv.height = 240;
+      drawCamThumb(cv, kf);
+      const cap = document.createElement("div");
+      cap.className = "cap";
+      cap.textContent = "t=" + kf.t.toFixed(1) + "s  d=" + kf.dist.toFixed(2) +
+        "m  off=(" + kf.bore_h + "°," + kf.bore_v + "°)";
+      cell.appendChild(cv); cell.appendChild(cap);
+      gal.appendChild(cell);
+    });
+    box.appendChild(t); box.appendChild(gal);
+    host.appendChild(box);
+  });
+})();
+
+function drawCamThumb(cv, kf) {
+  const c = cv.getContext("2d"), W = cv.width, H = cv.height;
+  c.fillStyle = "#0a0e13"; c.fillRect(0, 0, W, H);
+  c.save();
+  c.translate(W / 2, H / 2);
+  c.rotate(-kf.roll * Math.PI / 180);      // horizon roll (quad banks, omni stays level)
+  c.strokeStyle = "#1c2836"; c.lineWidth = 1;
+  for (let i = -6; i <= 6; i++) {
+    c.beginPath(); c.moveTo(i * 40, -H); c.lineTo(i * 40, H); c.stroke();
+    c.beginPath(); c.moveTo(-W, i * 40); c.lineTo(W, i * 40); c.stroke();
+  }
+  c.strokeStyle = "#2a3b50"; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(-W, 0); c.lineTo(W, 0); c.stroke();  // horizon
+  // gauge disc at angular offset (degrees -> pixels, distance-dependent)
+  const ppd = Math.max(4, Math.min(14, 340 / Math.max(1.2, kf.dist)));
+  const gx = kf.bore_h * ppd, gy = -kf.bore_v * ppd;
+  const r = Math.max(9, Math.min(72, 300 / Math.max(1.2, kf.dist)));
+  c.beginPath(); c.arc(gx, gy, r, 0, Math.PI * 2);
+  c.fillStyle = kf.clarity < 0.35 ? "#7f1d1d" : "#ef4444"; c.fill();
+  c.strokeStyle = "#e5e7eb"; c.lineWidth = 2; c.stroke();
+  c.beginPath(); c.moveTo(gx, gy);
+  c.lineTo(gx + r * 0.7 * Math.cos(-0.8), gy + r * 0.7 * Math.sin(-0.8));
+  c.strokeStyle = "#fff"; c.lineWidth = 2; c.stroke();
+  if (Math.abs(gx) > W / 2 - r || Math.abs(gy) > H / 2 - r) {
+    // target out of frame: point an arrow at it
+    const ang = Math.atan2(gy, gx);
+    c.fillStyle = "#f87171";
+    c.beginPath();
+    c.arc(Math.max(-W/2+r, Math.min(W/2-r, gx)), Math.max(-H/2+r, Math.min(H/2-r, gy)),
+          r * 0.4, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.restore();
+  // crosshair
+  c.strokeStyle = "#22d3ee"; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo(W / 2 - 14, H / 2); c.lineTo(W / 2 + 14, H / 2); c.stroke();
+  c.beginPath(); c.moveTo(W / 2, H / 2 - 14); c.lineTo(W / 2, H / 2 + 14); c.stroke();
+  if (kf.clarity < 0.35) {
+    c.fillStyle = "rgba(120,124,130,.45)"; c.fillRect(0, 0, W, H);
+    c.fillStyle = "#fca5a5"; c.font = "16px system-ui";
+    c.fillText("LOW CLARITY → HOLD", 12, H - 14);
+  }
+}
+
+/* ============================= charts ============================= */
+const CHART_DEFS = [
+  { id: "bore", title: "相机偏离目标角 Camera boresight error (deg) — 越平越好", hlines: [{ v: 18, color: "#f87171", label: "on-target 18°" }],
+    get: function (e) { return { pts: zip(e.tl.t, e.tl.bore), color: e.color, label: e.label }; }, yMin: 0 },
+  { id: "dist", title: "与仪表距离 Distance to gauge (m) — 不低于 1.5 m", hlines: [{ v: SCENE.min_distance, color: "#f87171", label: "min 1.5 m" }],
+    get: function (e) { return { pts: zip(e.tl.t, e.tl.dist), color: e.color, label: e.label }; } },
+  { id: "speed", title: "速度 Speed (m/s)", get: function (e) { return { pts: zip(e.tl.t, e.tl.speed), color: e.color, label: e.label }; }, yMin: 0 },
+  { id: "lat", title: "推理延迟 Agent latency (ms) — 超出预算线=超时", hlines: [{ v: SCENE.agent_budget * 1000, color: "#f87171", label: "budget" }],
+    get: function (e) {
+      return { pts: e.run.chunks.filter(function (c) { return "latency" in c; })
+        .map(function (c) { return [c.t_arrival, c.latency * 1000]; }),
+        color: e.color, label: e.label, type: "scatter" }; }, yMin: 0 },
+  { id: "conf", title: "VLA 置信度 Confidence", get: function (e) {
+      return { pts: e.run.chunks.filter(function (c) { return "confidence" in c; })
+        .map(function (c) { return [c.t_call, c.confidence]; }),
+        color: e.color, label: e.label, type: "step" }; }, yMin: 0, yMax: 1.05 },
+  { id: "track", title: "轨迹跟踪误差 Tracking error (m)", get: function (e) {
+      return { pts: zip(e.tl.t, e.tl.track_err), color: e.color, label: e.label }; }, yMin: 0 }
+];
+function zip(a, b) { const out = []; for (let i = 0; i < a.length; i++) out.push([a[i], b[i]]); return out; }
+const chartCanvases = [];
+
+(function () {
+  const host = document.getElementById("charts");
+  CHART_DEFS.forEach(function (def) {
+    const box = document.createElement("div");
+    box.className = "chartbox";
+    const t = document.createElement("div"); t.className = "ct"; t.textContent = def.title;
+    const cv = document.createElement("canvas"); cv.className = "chart"; cv.dataset.chart = def.id;
+    box.appendChild(t); box.appendChild(cv);
+    host.appendChild(box);
+    chartCanvases.push({ def: def, cv: cv });
+  });
+})();
+
+const BANDS = RUNS.length ? RUNS[0].run.meta.faults.windows.map(function (w) {
+  const col = w.kind === "gust" ? "rgba(251,191,36,.13)" :
+    w.kind === "visual-loss" ? "rgba(248,113,113,.13)" : "rgba(148,163,184,.13)";
+  return { t0: w.t0, t1: w.t1, color: col, label: w.kind };
+}) : [];
+
+function drawChart(entry) {
+  const def = entry.def, cv = entry.cv;
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 560;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(200 * dpr);
+  const c = cv.getContext("2d");
+  const L = 40 * dpr, R = 10 * dpr, Tm = 12 * dpr, Bm = 22 * dpr;
+  const pw = cv.width - L - R, ph = cv.height - Tm - Bm;
+  const series = RUNS.map(def.get).filter(function (s) { return s.pts.length > 0; });
+  let ymin = def.yMin !== undefined ? def.yMin : Infinity;
+  let ymax = def.yMax !== undefined ? def.yMax : -Infinity;
+  if (def.yMin === undefined || def.yMax === undefined) {
+    series.forEach(function (s) { s.pts.forEach(function (p) {
+      if (def.yMin === undefined) ymin = Math.min(ymin, p[1]);
+      if (def.yMax === undefined) ymax = Math.max(ymax, p[1]);
+    }); });
+  }
+  if (!isFinite(ymin)) ymin = 0;
+  if (!isFinite(ymax) || ymax === ymin) ymax = ymin + 1;
+  const pad = (ymax - ymin) * 0.08;
+  if (def.yMax === undefined) ymax += pad;
+  if (def.yMin === undefined) ymin = Math.max(0, ymin - pad);
+
+  c.clearRect(0, 0, cv.width, cv.height);
+  c.fillStyle = "#070a0e"; c.fillRect(0, 0, cv.width, cv.height);
+  const X = function (t) { return L + t / T_END * pw; };
+  const Y = function (v) { return Tm + (1 - (v - ymin) / (ymax - ymin)) * ph; };
+  // bands
+  BANDS.forEach(function (b) {
+    c.fillStyle = b.color;
+    c.fillRect(X(b.t0), Tm, X(b.t1) - X(b.t0), ph);
+    c.fillStyle = "#64748b"; c.font = (9 * dpr) + "px system-ui";
+    c.fillText(b.label, X(b.t0) + 3, Tm + 10 * dpr);
+  });
+  // grid + y ticks
+  c.strokeStyle = "#16202c"; c.fillStyle = "#64748b"; c.lineWidth = 1;
+  c.font = (9.5 * dpr) + "px ui-monospace,monospace";
+  for (let i = 0; i <= 4; i++) {
+    const v = ymin + (ymax - ymin) * i / 4, y = Y(v);
+    c.beginPath(); c.moveTo(L, y); c.lineTo(L + pw, y); c.stroke();
+    c.fillText(v >= 100 ? v.toFixed(0) : v.toFixed(1), 4 * dpr, y + 3 * dpr);
+  }
+  for (let t = 0; t <= T_END; t += 5) {
+    const x = X(t);
+    c.strokeStyle = "#121a24";
+    c.beginPath(); c.moveTo(x, Tm); c.lineTo(x, Tm + ph); c.stroke();
+    if (t % 10 === 0) { c.fillStyle = "#64748b"; c.fillText(t + "s", x - 6 * dpr, cv.height - 6 * dpr); }
+  }
+  // hlines
+  (def.hlines || []).forEach(function (h) {
+    if (h.v < ymin || h.v > ymax) return;
+    const y = Y(h.v);
+    c.strokeStyle = h.color; c.setLineDash([5, 4]); c.lineWidth = 1.2 * dpr;
+    c.beginPath(); c.moveTo(L, y); c.lineTo(L + pw, y); c.stroke(); c.setLineDash([]);
+    c.fillStyle = h.color; c.font = (9 * dpr) + "px system-ui";
+    c.fillText(h.label, L + 4 * dpr, y - 4 * dpr);
+  });
+  // series
+  series.forEach(function (s) {
+    c.strokeStyle = s.color; c.fillStyle = s.color; c.lineWidth = 1.8 * dpr;
+    if (s.type === "scatter") {
+      s.pts.forEach(function (p) {
+        c.beginPath(); c.arc(X(p[0]), Y(p[1]), 2.6 * dpr, 0, Math.PI * 2); c.fill();
+      });
+    } else if (s.type === "step") {
+      c.beginPath();
+      s.pts.forEach(function (p, i) {
+        const x = X(p[0]), y = Y(p[1]);
+        if (i === 0) c.moveTo(x, y); else { c.lineTo(x, Y(s.pts[i - 1][1])); c.lineTo(x, y); }
+      });
+      c.stroke();
+    } else {
+      c.beginPath();
+      s.pts.forEach(function (p, i) {
+        const x = X(p[0]), y = Y(p[1]);
+        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      });
+      c.stroke();
+    }
+  });
+  // legend
+  let lx = L + 6 * dpr;
+  series.forEach(function (s) {
+    c.fillStyle = s.color; c.fillRect(lx, Tm + 4 * dpr, 12 * dpr, 3 * dpr);
+    c.font = (10 * dpr) + "px system-ui";
+    c.fillText(s.label, lx + 16 * dpr, Tm + 10 * dpr);
+    lx += (16 + c.measureText(s.label).width + 18) * dpr;
+  });
+}
+function drawCharts() { chartCanvases.forEach(drawChart); }
+function requestChartsPlayhead() { /* static charts; playhead omitted on purpose */ }
+
+/* ============================= inspector ============================= */
+const inspectorHosts = [];
+(function () {
+  const host = document.getElementById("inspectors");
+  RUNS.forEach(function (e) {
+    const box = document.createElement("div");
+    box.style.marginBottom = "14px";
+    const t = document.createElement("div"); t.className = "ilabel";
+    t.textContent = e.label;
+    const grid = document.createElement("div"); grid.className = "inspector";
+    const l = document.createElement("div");
+    l.innerHTML = '<div class="ilabel">VLA 原始输出 raw ActionBlock</div>';
+    const preR = document.createElement("pre"); preR.className = "raw";
+    const r = document.createElement("div");
+    r.innerHTML = '<div class="ilabel">安全层修正后 repaired setpoints + verdict</div>';
+    const preF = document.createElement("pre"); preF.className = "fixed";
+    l.appendChild(preR); r.appendChild(preF);
+    grid.appendChild(l); grid.appendChild(r);
+    box.appendChild(t); box.appendChild(grid);
+    host.appendChild(box);
+    inspectorHosts.push({ e: e, preR: preR, preF: preF, lastSeq: -1 });
+  });
+})();
+
+function findChunk(e, T) {
+  let best = null;
+  e.run.chunks.forEach(function (c) {
+    if (c.t_arrival <= T + 1e-9) best = c;
+  });
+  return best;
+}
+function truncArr(a, n, fix) {
+  const out = a.slice(0, n).map(function (row) {
+    return Array.isArray(row) ? row.map(function (v) { return +(+v).toFixed(fix); }) : +(+a).toFixed(fix);
+  });
+  if (a.length > n) out.push("… ×" + a.length);
+  return out;
+}
+function updateInspector(T) {
+  inspectorHosts.forEach(function (ih) {
+    const c = findChunk(ih.e, T);
+    if (!c) { ih.preR.textContent = "…"; ih.preF.textContent = "…"; return; }
+    const seq = c.t_arrival;
+    if (seq === ih.lastSeq) return;
+    ih.lastSeq = seq;
+    const b = c.raw_block || {};
+    const shown = {
+      frame: b.frame, horizon: b.horizon, dt: b.dt, confidence: b.confidence,
+      delta_position: truncArr(b.delta_position || [], 3, 2),
+      delta_orientation: truncArr(b.delta_orientation || [], 3, 2),
+      stop_probability: truncArr(b.stop_probability || [], 4, 2)
+    };
+    ih.preR.textContent = JSON.stringify(shown, null, 1);
+    const rb = c.repaired_block || {};
+    const shown2 = {
+      verdict: c.status, checks: (c.checks || []).filter(function (k) {
+        return k.status !== "pass"; }).map(function (k) { return k.name + ":" + k.status; }),
+      position_refs: truncArr(rb.position_refs || [], 3, 2),
+      stats: c.stats
+    };
+    ih.preF.textContent = JSON.stringify(shown2, null, 1);
+  });
+}
+
+/* ============================= stats / compare / tables ============================= */
+(function () {
+  const host = document.getElementById("stat-views");
+  host.className = "split" + (RUNS.length === 1 ? " single" : "");
+  RUNS.forEach(function (e) {
+    const m = e.run.metrics;
+    const pane = document.createElement("div");
+    pane.className = "pane";
+    const items = [
+      [m.task_success ? "✓ " + (m.success_t ? m.success_t.toFixed(1) + " s" : "") : "✗ 未完成", "任务结果 Task result"],
+      [m.interventions_total, "安全干预 Interventions (改 " + m.interventions.modified +
+        " / 拒 " + m.interventions.rejected + " / 悬停 " + m.holds + ")"],
+      [m.latency_timeouts, "推理超时 Timeouts (p95 " + m.latency_p95_ms + " ms)"],
+      [(m.min_dist_gauge_executed === null || m.min_dist_gauge_executed === undefined) ? "-" :
+        m.min_dist_gauge_executed.toFixed(2) + " m", "执行最小距离 Min distance"],
+      [m.executed_zone_incursions, "执行越界 Executed incursions (拦截 " + m.raw_zone_points_blocked + " 点)"],
+      [m.bore_rms_transit_deg + "°", "转移段相机偏差 RMS Camera error (RMS)"],
+      [m.on_target_pct + "%", "画面正对占比 On-target"],
+      [m.tracking_rmse_m + " m", "跟踪误差 RMSE"],
+      [m.energy, "能耗代理 Energy proxy"],
+      [(m.confidence_mean || "-"), "平均置信度 Mean confidence"]
+    ];
+    const grid = document.createElement("div"); grid.className = "stats";
+    items.forEach(function (it) {
+      const s = document.createElement("div"); s.className = "stat";
+      const v = document.createElement("div"); v.className = "v"; v.textContent = it[0];
+      const k = document.createElement("div"); k.className = "k"; k.textContent = it[1];
+      s.appendChild(v); s.appendChild(k); grid.appendChild(s);
+    });
+    pane.appendChild(grid);
+    host.appendChild(pane);
+  });
+
+  // compare table
+  if (DATA.compare && DATA.compare.length) {
+    const el = document.getElementById("compare");
+    let html = '<table><tr><th>指标 Metric</th>';
+    RUNS.forEach(function (e) { html += "<th>" + e.label + "</th>"; });
+    html += "</tr>";
+    DATA.compare.forEach(function (row) {
+      html += "<tr><td>" + row.label + "</td>" +
+        row.values.map(function (v) { return '<td class="num">' + v + "</td>"; }).join("") + "</tr>";
+    });
+    html += "</table>";
+    el.innerHTML = html;
+  } else {
+    document.getElementById("compare-sec").style.display = "none";
+  }
+
+  // interventions table
+  const rows = [];
+  RUNS.forEach(function (e) {
+    e.run.chunks.forEach(function (c) {
+      (c.checks || []).forEach(function (k) {
+        if (k.status === "pass") return;
+        rows.push({ v: e.label, t: c.t_arrival, name: k.name, status: k.status, detail: k.detail });
+      });
+      if (c.fallback === "hold") rows.push({ v: e.label, t: c.t_arrival, name: "fallback",
+        status: "hold", detail: "悬停保持 hold until next healthy chunk" });
+    });
+  });
+  rows.sort(function (a, b) { return a.t - b.t; });
+  const host2 = document.getElementById("interventions");
+  let html = '<table><tr><th>t (s)</th><th>机型</th><th>检查</th><th>结果</th><th>详情</th></tr>';
+  rows.slice(0, 400).forEach(function (r) {
+    html += "<tr><td class='num'>" + r.t.toFixed(2) + "</td><td>" + r.v + "</td><td>" +
+      r.name + "</td><td><span class='pill " + r.status + "'>" + r.status +
+      "</span></td><td>" + r.detail + "</td></tr>";
+  });
+  html += "</table>";
+  if (rows.length > 400) html += '<div class="sub" style="padding:8px">… 共 ' + rows.length + " 条,仅显示前 400 条</div>";
+  host2.innerHTML = html;
+
+  // event strips
+  const strips = document.getElementById("event-strips");
+  RUNS.forEach(function (e) {
+    const cv = document.createElement("canvas");
+    cv.style.width = "100%"; cv.style.height = "64px"; cv.style.display = "block";
+    cv.style.marginBottom = "6px";
+    strips.appendChild(cv);
+    drawEventStrip(cv, e);
+  });
+})();
+
+function drawEventStrip(cv, e) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 1200;
+  cv.width = w * dpr; cv.height = 64 * dpr;
+  const c = cv.getContext("2d");
+  const L = 8 * dpr, pw = cv.width - 16 * dpr, midY = 40 * dpr;
+  c.fillStyle = "#070a0e"; c.fillRect(0, 0, cv.width, cv.height);
+  (e.run.meta.faults.windows || []).forEach(function (win) {
+    const col = win.kind === "gust" ? "rgba(251,191,36,.25)" :
+      win.kind === "visual-loss" ? "rgba(248,113,113,.25)" : "rgba(148,163,184,.25)";
+    c.fillStyle = col;
+    c.fillRect(L + win.t0 / T_END * pw, 6 * dpr, (win.t1 - win.t0) / T_END * pw, 52 * dpr);
+  });
+  c.strokeStyle = "#1f2937";
+  c.beginPath(); c.moveTo(L, midY); c.lineTo(L + pw, midY); c.stroke();
+  for (let t = 0; t <= T_END; t += 5) {
+    const x = L + t / T_END * pw;
+    c.strokeStyle = "#16202c"; c.beginPath();
+    c.moveTo(x, 34 * dpr); c.lineTo(x, 46 * dpr); c.stroke();
+    c.fillStyle = "#64748b"; c.font = (9 * dpr) + "px ui-monospace,monospace";
+    c.fillText(t + "s", x - 5 * dpr, 60 * dpr);
+  }
+  e.run.events.forEach(function (ev) {
+    const x = L + ev.t / T_END * pw;
+    let col = "#94a3b8", r = 3 * dpr;
+    if (ev.kind === "hold") col = "#60a5fa";
+    else if (ev.kind === "timeout") col = "#fb923c";
+    else if (ev.kind === "success") { col = "#34d399"; r = 5 * dpr; }
+    else if (ev.kind === "rtl") col = "#c084fc";
+    else if (ev.kind.indexOf("gust") === 0) col = "#fbbf24";
+    else if (ev.kind.indexOf("visual") === 0) col = "#f87171";
+    c.fillStyle = col;
+    c.beginPath(); c.arc(x, midY, r, 0, Math.PI * 2); c.fill();
+  });
+  c.fillStyle = e.color; c.font = (11 * dpr) + "px system-ui";
+  c.fillText(e.label + " events", L + 4 * dpr, 16 * dpr);
+}
+
+/* ============================= boot ============================= */
+drawCharts();
+updateInspector(0);
+updateOnce();
+</script>
+</body>
+</html>
